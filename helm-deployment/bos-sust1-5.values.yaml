@@ -2,7 +2,7 @@ global:
   ingressDomain: bos-sust1-5.corp.atscale.com
   security:
     allowInsecureImages: true
-
+    
   atscale:
     registry:
       url: registry.atscale.com
@@ -17,3 +17,6 @@ atscale-proxy:
   replicaCount: 1
   service:
     type: LoadBalancer
+image:
+  repository: registry-1.docker.io/atscaleinc/atscale
+  tag: 2024.8.0
