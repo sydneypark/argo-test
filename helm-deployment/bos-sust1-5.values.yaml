@@ -1,7 +1,7 @@
 global:
   ingressDomain: bos-sust1-5.corp.atscale.com
   image:
-    repository: oci://registry-1.docker.io/atscaleinc/atscale
+    repository: registry-1.docker.io/atscaleinc/atscale
     tag: 2025.8.0
   security:
     allowInsecureImages: true
