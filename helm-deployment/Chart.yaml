@@ -33,11 +33,11 @@ dependencies:
 
   #### TELEMETRY ####
 
-  - name: opentelemetry-collector
-    version: 0.110.3
-    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
-    condition: global.atscale.telemetry.enabled
-    alias: telemetry
+#  - name: opentelemetry-collector
+#    version: 0.110.3
+#    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+#    condition: global.atscale.telemetry.enabled
+#    alias: telemetry
 
   - name: atscale-common
     repository: oci://docker.io/atscaleinc
