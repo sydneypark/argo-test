@@ -3,9 +3,9 @@ global:
   security:
     allowInsecureImages: true
     
-atscale-opentelemetry-collector:
-  image:
-    repository: "oci://registry-1.docker.io/atscaleinc/atscale"
+#atscale-opentelemetry-collector:
+#  image:
+#    repository: "oci://registry-1.docker.io/atscaleinc/atscale"
 
   atscale:
     registry:
