@@ -2,6 +2,8 @@ global:
   ingressDomain: bos-sust1-5.corp.atscale.com
   security:
     allowInsecureImages: true
+    
+atscale-opentelemetry-collector:
   image:
     repository: "otel/opentelemetry-collector-k8s"
 
