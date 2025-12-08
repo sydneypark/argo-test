@@ -21,3 +21,2119 @@ atscale-proxy:
   replicaCount: 1
   service:
     type: LoadBalancer
+
+  commonLabels: {}
+
+  atscale:
+    # Set the certificate for TLS deployement.
+    # For deployment, include the certificate and key in base64 format.
+    tls:
+      ## @param existingSecret; If empty, the secret will be auto-generated.
+      ## In order to use a custom existingSecret, it is also needed to specify it on atscale-proxy.tls.existingSecret
+      existingSecret: ""
+
+      ## @param tlsCrt; If empty and no existingSecret provided, the certificate will be auto-generated.
+      ## TLS Certificate Base64 encoded.
+      tlsCrt: ""
+
+      ## @param tlsKey; If empty and no existingSecret provided, the key will be auto-generated.
+      ## TLS Key Base64 encoded.
+      tlsKey: ""
+
+      ## @param caCerts; If empty and no existingSecret provided, the CA certificate will be auto-generated.
+      ## CA Certificates Base64 encoded.
+      caCerts: ""
+
+    ## @section Telemetry Sidecar Configuration
+    ## This section configures the Telemetry sidecar, which is responsible for collecting not only logs,
+    ## but also other telemetry signals such as metrics and traces from AtScale components,
+    ## for logs it fetches from atscale-engine.gateway, atscale-proxy, postgres, redis, and keycloak.
+    ## These components do not natively export data via OTLP endpoints, so the sidecar runs alongside them,
+    ## gathering logs and other telemetry from local files or endpoints and forwarding it to
+    ## the OpenTelemetry Collector or another central endpoint for unified and centralized monitoring
+    ## of all signals.
+    telemetry:
+      ## If disabled, remember removing otel initContainers from:
+      ## atscale-engine.gateway, atscale-proxy, postgresql, redis and keycloak.
+      ## By adding this override
+      ## atscale-proxy:
+      ##  initContainers: []
+      ## atscale-engine:
+      ##   gateway:
+      ##     initContainers: []
+      ## postgres:Add commentMore actions
+      ##  postgresql:
+      ##    initContainers: []
+      ##  pgpool:
+      ##    initContainers: []
+      ## redis:
+      ##  master:
+      ##    initContainers: []
+      ##  replica:
+      ##    initContainers: []
+      ## keycloak:
+      ##    initContainers: []
+      enabled: true
+
+      fullnameOverride: ""
+      nameOverride: "telemetry"
+
+      logLevel: "INFO"
+      rotation:
+        logs:
+          max_megabytes: 500
+          max_days: 30
+          max_backups: 5
+        metrics:
+          max_megabytes: 500
+          max_days: 1
+          max_backups: 2
+        traces:
+          max_megabytes: 500
+          max_days: 1
+          max_backups: 2
+      image:
+        repository: docker.io/atscaleinc/opentelemetry-collector-contrib
+        tag: 2025.11.1
+      volumeClaim:
+        name: ""
+      configMap:
+        name: '{{ printf "%s-telemetry-logs" .Release.Name }}'
+      persistence:
+        create: true
+        storageClass: ""
+        annotations:
+          helm.sh/resource-policy: "keep"
+        accessModes:
+          - ReadWriteOnce
+        size: 64Gi
+        selector: {}
+        dataSource: {}
+      ## @param protocol
+      ## Protocol to use for exporting OTEL logs.
+      ## Accepted values: "http/protobuf", "http", or "grpc".
+      ## Default: "grpc" if not set.
+      protocol: "grpc"
+
+      ## @param endpoint
+      ## The URL/host to which OTEL logs will be sent.
+      ## Defaults to the OpenTelemetry Collector (otelco) service on port 4317 if not set.
+      endpoint: ""
+
+      ## @param healthEndpoint
+      ## The endpoint used for OTLP exporter health checks.
+      ## Defaults to the OpenTelemetry Collector service on port 13133 if not set.
+      healthEndpoint: ""
+
+    encryption:
+      ## @param key: A 64-characters sha256sum hash, used to encrypt the API internal secrets
+      ## The key will be auto-generated if not set. It can only be set once and it will not update if changed.
+      ## External connections, such as Tableau, will break if this key is changed or deleted.
+      key: ""
+
+      ## @param existingSecret: If set, takes precedence over manually provided key (encryption.key)
+      ## @param existingSecretEncryptionKeyRef: Key reference for encryption key in existingSecret
+      ## Connections to external tools, such as Tableau, will break if this key is changed or deleted.
+      existingSecret: ""
+      existingSecretEncryptionKeyRef: "encryptionKey"
+
+    keycloak:
+      enabled: true
+
+      users:
+        atscale:
+          # @param users.atscale.username; SML Web Client Admin user; Defaults to atscale-kc-admin
+          username: ""
+          # @param users.atscale.password; Randomly generated if not set
+          password: ""
+        admin:
+          # @param users.admin.username; Keycloak Admin user; Defaults to kc-admin
+          username: ""
+          # @param users.admin.password; Randomly generated if not set
+          password: ""
+        # @param users.existingSecret; If set, takes precedence over manually provided users secrets
+        # We generate this secret for you. If you substitue it with your own;
+        # make sure to change the secret name in keycloak section of the chart
+        existingSecret: "{{ .Release.Name }}-kc-users"
+        # @param users.existingSecretKeycloakAdminKeyRef; This key sets keycloak's admin username key ref from your secret
+        existingSecretKeycloakAdminKeyRef: "keycloakAdmin"
+        # @param users.existingSecretKeycloakAdminPasswordKeyRef; This key sets keycloak's admin password key ref from your secret
+        existingSecretKeycloakAdminPasswordKeyRef: "keycloakPassword"
+        # @param users.existingSecretAtscaleAdminKeyRef; This key sets atscale's admin username key ref from your secret
+        existingSecretAtscaleAdminKeyRef: "atscaleAdmin"
+        # @param users.existingSecretAtscaleAdminPassKeyRef; This key sets atscale's admin password key ref from your secret
+        existingSecretAtscaleAdminPassKeyRef: "atscaleAdminPassword"
+
+      clients:
+        # @param clients.api.clientSecret; Secret for API client, randomly generated if not set
+        api:
+          clientSecret: ""
+        # @param clients.engine.clientSecret; Secret for Engine client, randomly generated if not set
+        engine:
+          clientSecret: ""
+        # @param clients.entitlement.clientSecret; Secret for Entitlement client, randomly generated if not set
+        entitlement:
+          clientSecret: ""
+        # @param clients.sml.clientSecret; Secret for SML Modeler Web client, randomly generated if not set
+        modeler:
+          clientSecret: ""
+        # @param clients.publicApi.clientSecret; Secret for Public API client, randomly generated if not set
+        publicApi:
+          clientSecret: ""
+        # @param clients.mcp.clientSecret; Secret for MCP client, randomly generated if not set
+        mcp:
+          clientSecret: ""
+        # @param clients.existingSecret; If set, takes precedence over manually provided client secrets
+        # We generate this secret for you. If you substitue it with your own;
+        # make sure to change the secret name in keycloak section of the chart
+        existingSecret: "{{ .Release.Name }}-kc-clients"
+        # @param clients.existingSecretEngineKeyRef; Key reference form your keycloak client secret
+        existingSecretEngineKeyRef: "engine"
+        # @param clients.existingSecretModelerKeyRef; Key reference form your keycloak client secret
+        existingSecretModelerKeyRef: "modeler"
+        # @param clients.externalApiSecretKeyRef; Key reference form your keycloak client secret
+        existingSecretApiKeyRef: "api"
+        # @param clients.existingSecretPublicApiKeyRef; Key reference form your keycloak client secret
+        existingSecretPublicApiKeyRef: "publicApi"
+        # @param clients.existingSecretEntitlementKeyRef; Key reference form your keycloak client secret
+        existingSecretEntitlementKeyRef: "entitlement"
+        # @param clients.existingSecretMcpKeyRef; Key reference form your keycloak client secret
+        existingSecretMcpKeyRef: "mcp"
+
+    postgres:
+      # @param enabled; Toggles the internal postgres database.
+      enabled: true
+      # @param superUser; Defaults to postgres.
+      superUser: ""
+      # @param superPass; Defaults to randomly generated secret.
+      superPass: ""
+
+      # @param existingSecret; Setup your own secret for the superUser.
+      existingSecret: ""
+      # @param existingSecretUserKey; Setup your own secret for the superUser.
+      existingSecretUserKey: ""
+      # @param existingSecretPassKey; Setup your own secret for the superPass.
+      existingSecretPassKey: ""
+
+      customUsers:
+        # @param apiUser; Defaults to api.
+        apiUser: ""
+        # @param apiPass; Defaults to randomly generated secret.
+        apiPass: ""
+        # @param engineUser; Defaults to engine.
+        engineUser: ""
+        # @param enginePass; Defaults to randomly generated secret.
+        enginePass: ""
+        # @param entitlementUser; Defaults to entitlement.
+        entitlementUser: ""
+        # @param entitlementPass; Defaults to randomly generated secret.
+        entitlementPass: ""
+        # @param mcpUser; Defaults to mcp.
+        mcpUser: ""
+        # @param mcpPass; Defaults to randomly generated secret.
+        mcpPass: ""
+
+        # @param keycloak; Defaults to keycloak.
+        keycloakUser: ""
+        # @param keycloakPass; Defaults to randomly generated secret.
+        keycloakPass: ""
+        # @param pgwireUser; Defaults to pgwire.
+        pgwireUser: ""
+        # @param pgwirePass; Defaults to randomly generated if not set
+        pgwirePass: ""
+
+    aggregates:
+      # @param enabled; Toggles promoted aggregates;
+      enabled: false
+      # @param superUser; Defaults to postgres.
+      superUser: ""
+      # @param superPass; Defaults to randomly generated secret.
+      superPass: ""
+
+      # @param existingSecret; Setup your own secret for the superUser.
+      existingSecret: ""
+      # @param existingSecretUserKey; Setup your own secret for the superUser.
+      existingSecretUserKey: ""
+      # @param existingSecretPassKey; Setup your own secret for the superPass.
+      existingSecretPassKey: ""
+
+      # @param customUsers.aggsUser; Override the default user which is atscale;
+      # @param customUsers.aggsPass; Override the default password which is randomly generated;
+      # If you want to use an existingSecret override the aggregates.extraEnvVars environment variables with your own secret.
+      customUsers:
+        aggsUser: ""
+        aggsPass: ""
+
+      # @param engine.secret; This is the default connection for the engine to the aggregates DW.
+      # Its autogenerated. Please override this if you are using an existingSecret for the aggregates.
+      engine:
+        persistence: /var/lib/postgresql/16/docker
+        configmap: '{{ printf "%s-dw-conn" (include "common.names.fullname" .) }}'
+
+  security:
+    allowInsecureImages: true
+
+nameOverride: ""
+
+fullnameOverride: ""
+
+namespaceOverride: ""
+
+atscale-entitlement:
+  replicaCount: 1
+
+  nameOverride: "entitlement"
+
+  extraEnvVarsCM: '{{ include "common.names.fullname" . }}-extra-env'
+
+  image:
+    repository: docker.io/atscaleinc/entitlement
+    tag: "2025.11.1"
+
+  entitlement:
+    ## @param licenseKey; You can supply a plain string AtScale license key here.
+    ## Alternatively you can upload it via the UI after install
+    licenseKey: ""
+
+    ## @param existingLicenseSecret; You can supply a existing secret with the AtScale license key here.
+    ## @param existingLicenseSecretKey; Is the key in your secret which has your license.
+    ## Alternatively you can upload it via the UI after install
+    existingLicenseSecret: ""
+    existingLicenseSecretKey: ""
+
+  nodeSelector: {}
+
+  resources: {}
+  # limits:
+  #   cpu: 1000m
+  #   memory: 1024Mi
+  # requests:
+  #   cpu: 200m
+  #   memory: 256Mi
+
+  defaultInitContainers:
+    # The values set as default are the minimum required for AtScale to run.
+    # limits:
+    #   cpu: 200m
+    #   memory: 200Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 100Mi
+    telemetry:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+
+  tolerations: []
+
+  ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+  ##    podAntiAffinity:
+  ##    requiredDuringSchedulingIgnoredDuringExecution:
+  ##      - labelSelector:
+  ##          matchLabels:
+  ##            app.kubernetes.io/name: atscale-entitlement
+  ##        topologyKey: kubernetes.io/hostname
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+  ## - maxSkew: 1
+  ##   topologyKey: topology.kubernetes.io/zone
+  ##   whenUnsatisfiable: DoNotSchedule
+  ##   labelSelector:
+  ##     matchLabels:
+  ##       app.kubernetes.io/name: atscale-entitlement
+  topologySpreadConstraints: []
+
+  ## @param livenessProbe; periodic health check to determine if the container should be restarted
+  ## - path: <string> (HTTP endpoint for the liveness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before restart)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  livenessProbe:
+    path: /healthz
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## @param readinessProbe; determines if the container is ready to receive traffic
+  ## - path: <string> (HTTP endpoint for the readiness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before marking unready)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  readinessProbe:
+    path: /readyz
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  logFileProvider:
+    enabled: true
+    appLogPath: "/var/log/app"
+    minRotationSizeBytes: "100000000"
+    rotationPeriodSeconds: "30"
+    ephemeralLogStorage: 1024Mi
+
+  externalRedis:
+    existingSecret: "{{ .Release.Name }}-redis-conn"
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: ""
+    existingSecretPasswordKey: "password"
+    existingSecretSslEnabledKey: "sslEnabled"
+    existingSecretSslCertKey: ""
+    existingSecretSslPrivateKey: ""
+    existingSecretSkipVerifyKey: ""
+
+  externalDatabase:
+    waitForDB: 60
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretDatabaseKey: "database"
+    existingSecretPasswordKey: "password"
+    # @param existingSecretSslModeKey; When creating a key i.e. "sslMode" in your secret the possible Values can be:
+    # disable, allow, prefer, require, verify-ca, verify-full; Entitlement defaults to "disable" ssl mode.
+    existingSecretSslModeKey: "sslMode"
+    existingSecretSslCertKey: ""
+    existingSecretSslPrivateKey: ""
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+atscale-engine:
+  replicaCount: 1
+
+  nameOverride: "engine"
+
+  extraEnvVarsCM: '{{ include "common.names.fullname" . }}-extra-env'
+
+  image:
+    repository: docker.io/atscaleinc/engine
+    tag: "2025.11.1"
+
+  certImage:
+    repository: docker.io/atscaleinc/engine-certs
+    tag: 2025.11.1
+    pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "128Mi"
+
+  # @param podAnnotations: Annotations for AtScale Engine pods
+  podAnnotations: {}
+
+  # @param podLabels: Labels for AtScale Engine pods
+  podLabels: {}
+
+  defaultInitContainers:
+    engineInit:
+      ## @param defaultInitContainers.engineInit.enabled: Enables AtScale Engine helper init container
+      ## Disabling this init container may cause AtScale Engine to not work properly
+      ## This pod require network communication, so in case of issues with Service Meshes,
+      ##   it is recommended to add an exclusion to ports 6379 (Redis) and 10518 (PostgreSQL)
+      ## Exampe for Istio:
+      ##   - traffic.sidecar.istio.io/excludeOutboundPorts: 6379,10518
+      enabled: true
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 3000m
+      ##   memory: 8000Mi
+      ## requests:
+      ##   cpu: 1000m
+      ##   memory: 4000Mi
+      resources: {}
+    telemetry:
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 1000m
+      ##   memory: 2000Mi
+      ## requests:
+      ##   cpu: 500m
+      ##   memory: 1000Mi
+      resources: {}
+
+  gateway:
+    replicaCount: 1
+    fullnameOverride: ""
+    nameOverride: "engine-gateway"
+
+    service:
+      type: ClusterIP
+      targetPort:
+        http: engine
+      extraPorts:
+        # Uncomment this to enable apache thrift connection to the engine
+        # - name: atscale-atscale-engine-sql-11111
+        #   port: 11111
+        #   targetPort: 11111
+        #   protocol: TCP
+        - name: atscale-atscale-engine-sql-15432
+          port: 15432
+          targetPort: 15432
+          protocol: TCP
+
+    image:
+      registry: docker.io
+      repository: atscaleinc/nginx
+      tag: "2025.11.1"
+
+    resources:
+      requests:
+        memory: 512Mi
+
+    networkPolicy:
+      enabled: false
+
+    extraContainerPorts:
+      - name: engine
+        containerPort: 8081
+      # Uncomment this to enable apache thrift connection to the engine
+      # - name: thrift
+      #   containerPort: 11111
+      - name: pgwire
+        containerPort: 15432
+
+    # @param serverConfig; Nginx upstream config server stanza parameters.
+    # This block is used to add parameters for TCP upstream servers
+    # More on: https://nginx.org/en/docs/http/ngx_http_core_module.html
+    streamConfig: |-
+      proxy_connect_timeout 21600s;
+      proxy_timeout 21600s;
+      proxy_next_upstream_timeout 21600s;
+
+    # @param serverConfig; Nginx server stanza parameters.
+    # This block is used to add parameters to http location blocks.
+    # More on: https://nginx.org/en/docs/http/ngx_http_core_module.html
+    serverConfig: |-
+      access_log /var/log/app/engine-gateway-access.log;
+      error_log /var/log/app/engine-gateway-error.log warn;
+
+    ## @param initContainers Extra init containers
+    ##
+    initContainers:
+      - name: otel-logs-collector
+        securityContext: {}
+        image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+        restartPolicy: "Always"
+        ## The values set as default are the minimum required for AtScale to run.
+        ## limits:
+        ##   cpu: 200m
+        ##   memory: 200Mi
+        ## requests:
+        ##   cpu: 100m
+        ##   memory: 100Mi
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        args:
+          - --config=/conf/collector.yaml
+        volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+          - name: otel-config
+            mountPath: /conf
+
+    ## @param extraVolumes Array to add extra volumes
+    ##
+    extraVolumes:
+      - name: logs
+        emptyDir:
+          sizeLimit: 1000Mi
+      - name: otel-config
+        configMap:
+          name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+
+    ## @param extraVolumeMounts Array to add extra mount
+    ##
+    extraVolumeMounts:
+      - name: logs
+        mountPath: /var/log/app
+
+  sqlService:
+    annotations: {}
+    type: ClusterIP
+    ports:
+      ## @param pgwire; Port for PgWire protocol.
+      ## Required for Data Warehouse connections.
+      ## Default: "15432"
+      pgwire: "15432"
+
+      ## @param thrift; Port for Thrift protocol.
+      ## Can be enabled by setting the value as "11111".
+      ## In order to enable the port, also uncomment the respective sections in
+      ## atscale-engine.gateway.service.extraPorts and atscale-engine.gateway.extraContainerPorts
+      ## Default: ""
+      thrift: ""
+
+  nodeSelector: {}
+
+  resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # The values set as default are the minimum required for AtScale to run.
+  # limits:
+  #   cpu: 4000m
+  #   memory: 36000Mi
+  # requests:
+  #   cpu: 1000m
+  #   memory: 4096Mi
+
+  tolerations: []
+
+  ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+  ##    podAntiAffinity:
+  ##    requiredDuringSchedulingIgnoredDuringExecution:
+  ##      - labelSelector:
+  ##          matchLabels:
+  ##            app.kubernetes.io/name: atscale-engine
+  ##        topologyKey: kubernetes.io/hostname
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+  ## - maxSkew: 1
+  ##   topologyKey: topology.kubernetes.io/zone
+  ##   whenUnsatisfiable: DoNotSchedule
+  ##   labelSelector:
+  ##     matchLabels:
+  ##       app.kubernetes.io/name: atscale-engine
+  topologySpreadConstraints: []
+
+  ## @param livenessProbe; periodic health check to determine if the container should be restarted
+  ## - path: <string> (HTTP endpoint for the liveness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before restart)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## @param readinessProbe; determines if the container is ready to receive traffic
+  ## - path: <string> (HTTP endpoint for the readiness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before marking unready)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  readinessProbe:
+    path: /ready
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  engine:
+    otlp:
+      endpoint: 'http://{{include "atscale.service.otel" . }}:4317'
+      service: '{{ include "atscale.service.otel" . }}'
+    logFileProvider:
+      enabled: true
+      appLogPath: "/var/log/app"
+      fulllogPath: "/var/log/atscale"
+      exporterInterval: "18 hours"
+      minRotationSizeBytes: "100000000"
+      rotationPeriodSeconds: "30"
+      ephemeralLogStorage: 2048Mi
+
+  options:
+    JAVA_OPTS: "-Xms2G -Xmx31G"
+    cache:
+      ## The maximum amount of time to cache UserInfo data. Defaults to "60 seconds"
+      evictionEntryAge: ""
+      ## The maximum amount of time to retain unused UserInfo data. Defaults to "30 seconds"
+      evictionUseAge: ""
+
+  redis:
+    parallelism:
+      ## @param cpu_bound Redis CPU-bound parallelism.
+      ## Default: 4
+      cpu_bound: ""
+
+      ## @param io_bound Redis IO-bound parallelism
+      ## Default: 4
+      io_bound: ""
+
+    ## @param event_loop_threads Sets the number of threads to allocate in Redis event loop connection pool.
+    ## If set to 0, the pool size will default to 2 * cpu cores
+    ## Default: 32
+    event_loop_threads: ""
+
+    ## @param retry_attempts Number of times the command will be retried before throwing the error.
+    ## Default: 3
+    retry_attempts: ""
+
+    ## @param retry_interval Time interval in milliseconds after which another attempt to send a command will be executed.
+    ## Default: 1500
+    retry_interval: ""
+
+    ## @param read_timeout_milliseconds Redis read timeout in milliseconds
+    ## Default: 1000
+    read_timeout_milliseconds: ""
+
+    ## @param connection_pool_size Sets the maximum number of connections the pool can allocate for concurrent requests.
+    ## Default: 300
+    connection_pool_size: 600
+
+  externalDatabase:
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretPasswordKey: "password"
+    existingSecretDatabaseKey: "database"
+    # @param existingSecretSslEnabledKey; When creating a key i.e. "sslEnabled" in your secret the possible Values can be:
+    # "true" or "false"; Engine defaults to "false" for ssl.
+    existingSecretSslEnabledKey: "sslEnabled"
+
+  externalPgwireDatabase:
+    existingSecret: '{{ printf "%s-pgwire-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretPasswordKey: "password"
+    existingSecretDatabaseKey: "database"
+
+  externalRedis:
+    existingSecret: "{{ .Release.Name }}-redis-conn"
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretSslEnabledKey: "sslEnabled"
+    existingSecretUserKey: ""
+    existingSecretPasswordKey: ""
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+atscale-sml:
+  replicaCount: 1
+
+  nameOverride: "sml-web"
+
+  image:
+    repository: docker.io/atscaleinc/web
+    tag: "2025.11.1"
+
+  extraEnvVarsCM: '{{ include "common.names.fullname" . }}-extra-env'
+
+  nodeSelector: {}
+
+  resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # The values set as default are the minimum required for AtScale to run.
+  # limits:
+  #   cpu: 2000m
+  #   memory: 4096Mi
+  # requests:
+  #   cpu: 500m
+  #   memory: 1024Mi
+
+  defaultInitContainers:
+    telemetry:
+      # The values set as default are the minimum required for AtScale to run.
+      # limits:
+      #   cpu: 200m
+      #   memory: 200Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+
+  tolerations: []
+
+  ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+  ##    podAntiAffinity:
+  ##    requiredDuringSchedulingIgnoredDuringExecution:
+  ##      - labelSelector:
+  ##          matchLabels:
+  ##            app.kubernetes.io/name: atscale-sml
+  ##        topologyKey: kubernetes.io/hostname
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+  ## - maxSkew: 1
+  ##   topologyKey: topology.kubernetes.io/zone
+  ##   whenUnsatisfiable: DoNotSchedule
+  ##   labelSelector:
+  ##     matchLabels:
+  ##       app.kubernetes.io/name: atscale-sml
+  topologySpreadConstraints: []
+
+  ## @param livenessProbe; periodic health check to determine if the container should be restarted
+  ## - path: <string> (HTTP endpoint for the liveness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before restart)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  livenessProbe:
+    path: /wapi/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## @param readinessProbe; determines if the container is ready to receive traffic
+  ## - path: <string> (HTTP endpoint for the readiness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before marking unready)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  readinessProbe:
+    path: /wapi/health
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  logFileProvider:
+    enabled: true
+    appLogPath: "/var/log/app"
+    minRotationSizeBytes: "100000000"
+    rotationPeriodSeconds: "30"
+    ephemeralLogStorage: 1024Mi
+
+  ## @param gitAuth Determines which authentication method will be used. Defaults to PAT.
+  ##   - clientId: Plain text client ID (requires clientSecret to be set). Takes precedence over existingSecret if both are provided.
+  ##   - clientSecret: Plain text client secret (requires clientId to be set). Takes precedence over existingSecret if both are provided.
+  ##   - existingSecret: Name of the Kubernetes Secret containing the client ID and client secret.
+  ##   - existingSecretClientIdKey: Key in the Secret that contains the client ID.
+  ##   - existingSecretClientSecretKey: Key in the Secret that contains the client secret.
+  gitAuth:
+    clientId: ""
+    clientSecret: ""
+
+    existingSecret: ""
+    existingSecretClientIdKey: ""
+    existingSecretClientSecretKey: ""
+
+  externalRedis:
+    existingSecret: "{{ .Release.Name }}-redis-conn"
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretSslEnabledKey: "sslEnabled"
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+atscale-api:
+  replicaCount: 1
+
+  nameOverride: "sml-api"
+
+  image:
+    repository: docker.io/atscaleinc/api
+    tag: "2025.11.1"
+
+  nodeSelector: {}
+
+  extraEnvVarsCM: '{{ include "common.names.fullname" . }}-extra-env'
+
+  resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # The values set as default are the minimum required for AtScale to run.
+  # limits:
+  #   cpu: 1000m
+  #   memory: 1024Mi
+  # requests:
+  #   cpu: 2000m
+  #   memory: 4096Mi
+
+  defaultInitContainers:
+    telemetry:
+      # The values set as default are the minimum required for AtScale to run.
+      # limits:
+      #   cpu: 200m
+      #   memory: 200Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+
+  tolerations: []
+
+  ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+  ##    podAntiAffinity:
+  ##    requiredDuringSchedulingIgnoredDuringExecution:
+  ##      - labelSelector:
+  ##          matchLabels:
+  ##            app.kubernetes.io/name: atscale-api
+  ##        topologyKey: kubernetes.io/hostname
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+  ## - maxSkew: 1
+  ##   topologyKey: topology.kubernetes.io/zone
+  ##   whenUnsatisfiable: DoNotSchedule
+  ##   labelSelector:
+  ##     matchLabels:
+  ##       app.kubernetes.io/name: atscale-sml
+  topologySpreadConstraints: []
+
+  ## @param livenessProbe; periodic health check to determine if the container should be restarted
+  ## - path: <string> (HTTP endpoint for the liveness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before restart)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## @param readinessProbe; determines if the container is ready to receive traffic
+  ## - path: <string> (HTTP endpoint for the readiness check)
+  ## - initialDelaySeconds: <integer> (time in seconds before the first probe)
+  ## - periodSeconds: <integer> (interval between consecutive probes)
+  ## - timeoutSeconds: <integer> (probe timeout duration)
+  ## - failureThreshold: <integer> (number of failed probes before marking unready)
+  ## - successThreshold: <integer> (number of successful probes to pass)
+  readinessProbe:
+    path: /ready
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  logFileProvider:
+    enabled: true
+    appLogPath: "/var/log/app"
+    minRotationSizeBytes: "100000000"
+    rotationPeriodSeconds: "30"
+    ephemeralLogStorage: 1024Mi
+
+  externalDatabase:
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretPasswordKey: "password"
+    existingSecretDatabaseKey: "database"
+    existingSecretSslEnabledKey: "sslEnabled"
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+atscale-mcp:
+  enabled: false
+
+  replicaCount: 1
+
+  extraEnvVarsCM: '{{ include "common.names.fullname" . }}-extra-env'
+
+  fullnameOverride: ""
+  nameOverride: "mcp-server"
+
+  image:
+    registry: docker.io
+    repository: atscaleinc/mcp-server
+    tag: "2025.11.1"
+
+  ## @param initContainers Extra init containers
+  ##
+  initContainers: []
+
+  ## @param extraVolumes Array to add extra volumes
+  ##
+  extraVolumes: []
+
+  ## @param extraVolumeMounts Array to add extra mount
+  ##
+  extraVolumeMounts: []
+
+  externalDatabase:
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretDatabaseKey: "database"
+    existingSecretPasswordKey: "password"
+    existingSecretSslModeKey: "sslMode"
+
+atscale-proxy:
+  enabled: true
+
+  # @param replicaCount; Number of nginx proxies for atscale services.
+  replicaCount: 1
+
+  fullnameOverride: ""
+  nameOverride: "ingress-gateway"
+
+  image:
+    registry: docker.io
+    repository: atscaleinc/nginx
+    tag: "2025.11.1"
+    debug: false
+
+  tls:
+    enabled: true
+    # @param autoGenerated; If you don't have a certificate the chart is going to generate one for you.
+    # Do not enable this.
+    autoGenerated: false
+    # @param existingSecret; Change this to your external TLS secret name.
+    existingSecret: '{{ printf "%s-default-tls" .Release.Name | trunc 63 | trimSuffix "-" }}'
+
+  # @param streamConfig; Nginx upstream config server stanza parameters.
+  # This block is used to add parameters for TCP upstream servers
+  streamConfig: |-
+    proxy_connect_timeout 21600s;
+    proxy_timeout 21600s;
+    proxy_next_upstream_timeout 21600s;
+
+  # @param serverConfig; Nginx server stanza parameters.
+  # This block is used to add parameters to http location blocks.
+  # More on: https://nginx.org/en/docs/http/ngx_http_core_module.html
+  serverConfig: |-
+    client_max_body_size 200M;
+    access_log /var/log/app/ingress-gateway-access.log;
+    error_log /var/log/app/ingress-gateway-error.log warn;
+
+  # @param overrideCiphers; Nginx ssl_ciphers override.
+  # This block is used to override the ssl_ciphers suits for nginx server block.
+  # More on: https://nginx.org/en/docs/http/ngx_http_core_module.html#server
+  overrideCiphers: ""
+
+  ## @param initContainers Extra init containers
+  ##
+  initContainers:
+    - name: otel-logs-collector
+      securityContext: {}
+      image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+      restartPolicy: "Always"
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 200m
+      ##   memory: 200Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+      args:
+        - --config=/conf/collector.yaml
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+        - name: otel-config
+          mountPath: /conf
+
+  ## @param extraVolumes Array to add extra volumes
+  ##
+  extraVolumes:
+    - name: logs
+      emptyDir:
+        sizeLimit: 1000Mi
+    - name: otel-config
+      configMap:
+        name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+    - name: errors
+      configMap:
+        name: '{{ (include "common.names.fullname" .) }}-error-page'
+
+  ## @param extraVolumeMounts Array to add extra mount
+  ##
+  extraVolumeMounts:
+    - name: errors
+      mountPath: /opt/bitnami/nginx/conf/5xx.html
+      subPath: 5xx.html
+    - name: logs
+      mountPath: /var/log/app
+
+  # @param serverConfig; Nginx http servers location parameters.
+  # This block is used to add parameters for http location routes.
+  # More on: https://nginx.org/en/docs/http/ngx_http_core_module.html
+  routeConfig: |-
+    proxy_buffer_size 128k;
+    proxy_buffers 4 128k;
+    proxy_busy_buffers_size 128k;
+    proxy_connect_timeout 21600s;
+    proxy_send_timeout 21600s;
+    proxy_read_timeout 21600s;
+    proxy_http_version 1.1;
+
+  service:
+    ## @param service.type; You can change this to a LoadBalancer if you don't have ingress controller on your cluster.
+    type: ClusterIP
+    ## @param service.annotations; annotations for the nginx ingress controller
+    ## AWS
+    ## service.beta.kubernetes.io/aws-load-balancer-scheme: internal ('internet-facing' for public LB)
+    ## service.beta.kubernetes.io/aws-load-balancer-internal: "true" (remove for public LB)
+    ## service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    ## service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+    ## service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true" #This setting should be enabled if you have 1 instance and more than 1 subnet
+    ## Azure
+    ## service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    ## service.beta.kubernetes.io/azure-load-balancer-ipv4: 10.240.0.25 (Optional)
+    ## GKE
+    ## networking.gke.io/load-balancer-type: "Internal"
+    ## networking.gke.io/load-balancer-ip-addresses: "10.240.0.25" (Optional)
+    ## kubernetes.io/ingress.global-static-ip-name: my-static-address (must be created upfront)
+    annotations: {}
+    ## @param service.ports.http Service HTTP port
+    ## @param service.ports.https Service HTTPS port
+    ##
+    ports:
+      http: 80
+      https: 443
+    ##
+    ## @param service.nodePorts [object] Specify the nodePort(s) value(s) for the LoadBalancer and NodePort service types.
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+    ##
+    nodePorts:
+      http: ""
+      https: ""
+    ## @param service.targetPort [object] Target port reference value for the Loadbalancer service types can be specified explicitly.
+    ## Listeners for the Loadbalancer can be custom mapped to the http or https service.
+    ## Example: Mapping the https listener to targetPort http [http: https]
+    ##
+    targetPort:
+      http: http
+      https: https
+    ## @param service.clusterIP NGINX service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
+    ## @param service.loadBalancerIP LoadBalancer service IP address
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
+    ##
+    loadBalancerIP: ""
+    ## @param service.loadBalancerSourceRanges NGINX service Load Balancer sources
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+    ## e.g:
+    ## loadBalancerSourceRanges:
+    ##   - 10.10.10.0/24
+    ##
+    loadBalancerSourceRanges: []
+    ## @param service.loadBalancerClass service Load Balancer class if service type is `LoadBalancer` (optional, cloud specific)
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+    ##
+    loadBalancerClass: ""
+
+    extraPorts:
+      - name: atscale-atscale-engine-sql-11111
+        port: 11111
+        targetPort: 11111
+        protocol: TCP
+      - name: atscale-atscale-engine-sql-15432
+        port: 15432
+        targetPort: 15432
+        protocol: TCP
+
+  extraContainerPorts:
+    - name: health
+      containerPort: 8888
+    - name: thrift
+      containerPort: 11111
+    - name: pgwire
+      containerPort: 15432
+
+  # If using ingress, ports pgwire (15432) and thrift (11111) should also be manually exposed on your Ingress Controller
+  # Examples:
+  #   - Nginx Ingress Controller: https://kubernetes.github.io/ingress-nginx/user-guide/exposing-tcp-udp-services/
+  #   - Traefik: https://doc.traefik.io/traefik/routing/routers/#configuring-tcp-routers
+  #   - Istio TCPRoute: https://istio.io/latest/docs/reference/config/networking/virtual-service/#TCPRoute
+  # Other solution would be exposing these ports from the service itself as a NodePort or LoadBalancer
+  ingress:
+    # @param enabled; Set this to true if you want to use ingress controller.
+    enabled: false
+    # @param ingressClassName; Set this to your cluster ingressClassName
+    ingressClassName: ""
+
+    # @param hostname; Do not change.
+    hostname: ""
+    # @param path; Do not change.
+    path: ""
+    annotations: {}
+
+    extraRules:
+      - host: "{{ .Values.global.ingressDomain }}"
+        http:
+          paths:
+            - path: /
+              pathType: ImplementationSpecific
+              backend:
+                service:
+                  name: '{{ printf "%s-ingress-gateway" .Release.Name | trunc 63 | trimSuffix "-" }}'
+                  port:
+                    name: http
+    pathType: ImplementationSpecific
+    extraTls: |
+      - secretName: {{ .Values.global.atscale.tls.existingSecret | default (printf "%s-default-tls" .Release.Name) }}
+        hosts:
+          - {{ .Values.global.ingressDomain }}
+
+  ## NGINX containers' liveness probe.
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param livenessProbe.enabled Enable livenessProbe
+  ## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+  ## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+  ## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+  ## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+  ## @param livenessProbe.successThreshold Success threshold for livenessProbe
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 6
+    successThreshold: 1
+
+  ## NGINX containers' readiness probe.
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param readinessProbe.enabled Enable readinessProbe
+  ## @param readinessProbe.path Request path for livenessProbe
+  ## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+  ## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+  ## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+  ## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+  ## @param readinessProbe.successThreshold Success threshold for readinessProbe
+  readinessProbe:
+    enabled: false
+  customReadinessProbe:
+    httpGet:
+      path: /
+      port: 8888
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+    successThreshold: 1
+  existingServerBlockConfigmap: '{{ (include "common.names.fullname" .) }}-server'
+  existingStreamServerBlockConfigmap: '{{ (include "common.names.fullname" .) }}-stream'
+
+  nodeSelector: {}
+
+  ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+  ##    podAntiAffinity:
+  ##    requiredDuringSchedulingIgnoredDuringExecution:
+  ##      - labelSelector:
+  ##          matchLabels:
+  ##            app.kubernetes.io/name: nginxproxy
+  ##        topologyKey: kubernetes.io/hostname
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  tolerations: []
+
+  ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+  ## - maxSkew: 1
+  ##   topologyKey: topology.kubernetes.io/zone
+  ##   whenUnsatisfiable: DoNotSchedule
+  ##   labelSelector:
+  ##     matchLabels:
+  ##       app.kubernetes.io/name: nginxproxy
+  ##       app.kubernetes.io/component: controller
+  topologySpreadConstraints: []
+
+  networkPolicy:
+    enabled: false
+
+  resources:
+    requests:
+      memory: 512Mi
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+  externalDatabase:
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretDatabaseKey: "database"
+    existingSecretPasswordKey: "password"
+
+db:
+  fullnameOverride: ""
+  nameOverride: "db"
+
+  image:
+    registry: docker.io
+    repository: atscaleinc/postgresql
+    tag: "2025.11.1"
+
+  persistence:
+    enabled: true
+    # If you have a persistent volume claim which you've created manually, define it here.
+    existingClaim: ""
+    # If a global storageClass has been defined on the cluster you can set it here.
+    storageClass: ""
+    # Set where in the PGcontainer you want to persistent storage to be set.
+    mountPath: /var/lib/postgresql/16/docker
+    # Persistent Volume Claim size
+    size: 64Gi
+
+  initContainers:
+    - name: otel-logs-collector
+      securityContext: {}
+      image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+      args:
+        - --config=/conf/collector.yaml
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 200m
+      ##   memory: 200Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+      restartPolicy: "Always"
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+        - name: otel-config
+          mountPath: /conf
+
+  extraVolumes:
+    - name: logs
+      emptyDir:
+        sizeLimit: 1000Mi
+    - name: otel-config
+      configMap:
+        name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+
+  extraVolumeMounts:
+    - name: logs
+      mountPath: /var/log/app
+
+  # Custom Secret which defines the databases for keycloak and atscale
+  initdbScriptsSecret: "{{ .Release.Name }}-db-init-scripts"
+
+  extendedConf: |-
+    log_destination = jsonlog
+    logging_collector = on
+    log_directory = '/var/log/app'
+    log_rotation_age = 1d
+    log_rotation_size = 100MB
+    log_truncate_on_rotation = on
+    log_file_mode = 0644
+
+  # @param resourcesPrese; This setups a preset value for the database resources. We've disabled it by default.
+  resourcesPreset:
+    "none"
+    ## The values set as default are the minimum required for AtScale to run.
+    ## You want to increase this value depending on your workload.
+    ## limits:
+    ##   cpu: 8000m
+    ##   memory: 16384Mi
+    ## requests:
+    ##   cpu: 4000m
+    ##   memory: 4096Mi
+  resources: {}
+
+  service:
+    ports:
+      tcp: 10518
+
+  ## Configure extra options for postgres containers' liveness and readiness probes
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ## @param livenessProbe.enabled Enable livenessProbe on postgres containers
+  ## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+  ## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+  ## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+  ## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+  ## @param livenessProbe.successThreshold Success threshold for livenessProbe
+  ##
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 10
+    successThreshold: 1
+  ## @param readinessProbe.enabled Enable readinessProbe on postgres containers
+  ## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+  ## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+  ## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+  ## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+  ## @param readinessProbe.successThreshold Success threshold for readinessProbe
+  ##
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 10
+    successThreshold: 1
+  ## @param startupProbe.enabled Enable startupProbe on postgres containers
+  ## @param startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param startupProbe.successThreshold Success threshold for startupProbe
+  ##
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+
+redis:
+  ## Limitations of High Availability Mode:
+  ## - The number of master replicas should be less or equal the number of nodes
+  ## since there can´t be more than 1 master per Kubernetes node.
+  ## - Master and replica should only see a single master in their own Kubernetes node
+  ##
+  ## In order to achieve HA, the following options should be changed:
+  ## redis.master.count
+  ## redis.master.service.internalTrafficPolicy
+  ## redis.master.affinity
+  ## redis.master.topologySpreadConstraints
+  ## redis.replica.replicaCount
+  ## redis.replica.affinity
+  ## redis.replica.topologySpreadConstraints
+
+  enabled: true
+
+  fullnameOverride: ""
+  nameOverride: "redis"
+
+  image:
+    registry: docker.io
+    repository: "atscaleinc/redis-stack-server"
+    tag: "2025.11.1"
+
+  cluster:
+    enabled: false
+  auth:
+    enabled: false
+    password: ""
+  metrics:
+    enabled: false
+
+    image:
+      registry: docker.io
+      repository: atscaleinc/redis-exporter
+      tag: "2025.11.1"
+
+  serviceAccount:
+    create: false
+
+  # Redis master configuration
+  master:
+    count: 1
+
+    service:
+      ports:
+        redis: 6379
+
+      ## @param internalTrafficPolicy: Traffic Policy for service assignment. Evaluated as a string.
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+      ## internalTrafficPolicy: Local
+
+    serviceAccount:
+      create: false
+    resources:
+      requests:
+        memory: "256Mi"
+
+    persistence:
+      enabled: true
+      storageClass: ""
+      # Size of the persistent volume
+      size: "16Gi"
+
+    nodeSelector: {}
+
+    ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+    ## affinity:
+    ##   podAntiAffinityPreset:
+    ##     requiredDuringSchedulingIgnoredDuringExecution:
+    ##       - labelSelector:
+    ##           matchLabels:
+    ##             app.kubernetes.io/name: redis
+    ##             app.kubernetes.io/component: master
+    ##         topologyKey: kubernetes.io/hostname
+    ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+
+    ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+    ## topologySpreadConstraints:
+    ##   - maxSkew: 1
+    ##     topologyKey: topology.kubernetes.io/zone
+    ##     whenUnsatisfiable: DoNotSchedule
+    ##     labelSelector:
+    ##       matchLabels:
+    ##         app.kubernetes.io/name: redis
+    ##         app.kubernetes.io/component: master
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+    topologySpreadConstraints: []
+
+    tolerations: []
+
+    ## initContainers:
+    ##   - name: otel-logs-collector
+    ##     securityContext: {}
+    ##     image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+    ##     args:
+    ##       - --config=/conf/collector.yaml
+    ##     resources:
+    ##       limits:
+    ##         cpu: 200m
+    ##         memory: 200Mi
+    ##       requests:
+    ##         cpu: 100m
+    ##         memory: 100Mi
+    ##     # We usually recommend not to specify default resources and to leave this as a conscious
+    ##     # choice for the user. This also increases chances charts run on environments with little
+    ##     # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    ##     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    ##     # The values set as default are the minimum required for AtScale to run.
+    ##     # limits:
+    ##     #   cpu: 200m
+    ##     #   memory: 200Mi
+    ##     # requests:
+    ##     #   cpu: 100m
+    ##     #   memory: 100Mi
+    ##     restartPolicy: "Always"
+    ##     volumeMounts:
+    ##       - name: logs
+    ##         mountPath: /var/log/app
+    ##       - name: otel-config
+    ##         mountPath: /conf
+
+    ## configuration: |-
+    ##   logfile /var/log/app/redis_master.log
+
+    ## extraVolumes:
+    ##   - name: logs
+    ##     emptyDir:
+    ##       sizeLimit: 500Mi
+    ##   - name: otel-config
+    ##     configMap:
+    ##       name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+
+    ## extraVolumeMounts:
+    ##   - name: logs
+    ##     mountPath: /var/log/app
+
+  replica:
+    replicaCount: 1
+
+    serviceAccount:
+      create: false
+    resources:
+      requests:
+        memory: "256Mi"
+    persistence:
+      enabled: true
+      size: "16Gi"
+      storageClass: ""
+
+    nodeSelector: {}
+
+    tolerations: []
+
+    ## @param affinity; Affinity for pod assignment. Evaluated as a template.
+    ## affinity:
+    ##    podAntiAffinityPreset:
+    ##      requiredDuringSchedulingIgnoredDuringExecution:
+    ##        - labelSelector:
+    ##            matchLabels:
+    ##              app.kubernetes.io/name: redis
+    ##              app.kubernetes.io/component: replica
+    ##          topologyKey: kubernetes.io/hostname
+    ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+
+    ## @param topologySpreadConstraints; pods assignment spread across your cluster among failure-domains
+    ## topologySpreadConstraints:
+    ##   - maxSkew: 1
+    ##     topologyKey: topology.kubernetes.io/zone
+    ##     whenUnsatisfiable: DoNotSchedule
+    ##     labelSelector:
+    ##       matchLabels:
+    ##         app.kubernetes.io/name: redis
+    ##         app.kubernetes.io/component: replica
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+    topologySpreadConstraints: []
+
+    ## initContainers:
+    ##  - name: otel-logs-collector
+    ##    securityContext: {}
+    ##    image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+    ##    args:
+    ##      - --config=/conf/collector.yaml
+    ##    restartPolicy: "Always"
+    ## The values set as default are the minimum required for AtScale to run.
+    ## limits:
+    ##   cpu: 200m
+    ##   memory: 200Mi
+    ## requests:
+    ##   cpu: 100m
+    ##   memory: 100Mi
+    ##    resources:
+    ##      limits:
+    ##        cpu: 200m
+    ##        memory: 200Mi
+    ##      requests:
+    ##        cpu: 100m
+    ##        memory: 100Mi
+    ##
+    ##    volumeMounts:
+    ##      - name: logs
+    ##        mountPath: /var/log/app
+    ##      - name: otel-config
+    ##        mountPath: /conf
+
+    ## configuration: |-
+    ##   logfile /var/log/app/redis_replica.log
+
+    ## extraVolumes:
+    ##   - name: logs
+    ##     emptyDir:
+    ##       sizeLimit: 500Mi
+    ##   - name: otel-config
+    ##     configMap:
+    ##       name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+
+    ## extraVolumeMounts:
+    ##   - name: logs
+    ##     mountPath: /var/log/app
+
+keycloak:
+  replicaCount: 1
+
+  fullnameOverride: ""
+  nameOverride: "keycloak"
+
+  image:
+    registry: docker.io
+    repository: atscaleinc/keycloak
+    tag: 2025.11.1
+
+  production: true
+  proxyHeaders: xforwarded
+  httpRelativePath: "/auth"
+  # extraStartupArgs: "--import-realm --features=token-exchange,admin-fine-grained-authz"
+  # Use the one below if telemetry enabled
+  extraStartupArgs: "--import-realm --features=token-exchange,admin-fine-grained-authz:v1 --log=console,file --log-file=/var/log/app/keycloak.log --hostname-backchannel-dynamic true"
+
+  nodeSelector: {}
+
+  ingress:
+    enabled: false
+
+  affinity: {}
+
+  tolerations: []
+
+  topologySpreadConstraints: []
+
+  service:
+    ports:
+      http: 8083
+      metrics: 9000
+
+  metrics:
+    enabled: true
+
+  auth:
+    adminUser: "{{- .Values.global.atscale.keycloak.users.admin.username }}"
+    existingSecret: "{{ .Release.Name }}-kc-users"
+    passwordSecretKey: keycloakAdminPassword
+
+  serviceAccount:
+    create: false
+
+  autoscaling:
+    enabled: false
+
+  resources:
+    requests:
+      memory: "256Mi"
+
+  postgresql:
+    enabled: false
+
+  logging:
+    level: "INFO"
+
+  customReadinessProbe:
+    httpGet:
+      path: /auth/realms/master
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 10
+    successThreshold: 1
+
+  ## @param initContainers Add additional init containers to the Keycloak pods
+  ## Example:
+  ## initContainers:
+  ##   - name: your-image-name
+  ##     image: your-image
+  ##     imagePullPolicy: Always
+  ##     ports:
+  ##       - name: portname
+  ##         containerPort: 1234
+  ##
+  initContainers:
+    - name: otel-logs-collector
+      securityContext: {}
+      image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 200m
+      ##   memory: 200Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+      args:
+        - --config=/conf/collector.yaml
+      restartPolicy: "Always"
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+        - name: otel-config
+          mountPath: /conf
+
+  # ## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for Keycloak container(s)
+  # ##
+  extraVolumeMounts:
+    - name: realm-configs
+      mountPath: /opt/bitnami/keycloak/data/import/realm-import.json
+      subPath: realm-import.json
+      readOnly: true
+    - name: logs
+      mountPath: /var/log/app
+
+  # ## @param extraVolumes Optionally specify extra list of additional volumes for Keycloak pods
+  # ##
+  extraVolumes:
+    - name: realm-configs
+      configMap:
+        name: '{{ (include "common.names.fullname" .) }}-realm'
+    - name: logs
+      emptyDir:
+        sizeLimit: 1000Mi
+    - name: otel-config
+      configMap:
+        name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+
+  externalDatabase:
+    existingSecret: '{{ printf "%s-db-conn" (include "common.names.fullname" .) }}'
+    existingSecretHostKey: "host"
+    existingSecretPortKey: "port"
+    existingSecretUserKey: "user"
+    existingSecretDatabaseKey: "database"
+    existingSecretPasswordKey: "password"
+
+  extraEnvVarsCM: '{{ (include "common.names.fullname" .) }}-extra-env'
+
+  extraEnvVars:
+    - name: KEYCLOAK_ADMIN
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-users"
+          key: keycloakAdmin
+    - name: KC_ATSCALE_ADMIN_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-users"
+          key: atscaleAdmin
+    - name: KC_ATSCALE_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-users"
+          key: atscaleAdminPassword
+    - name: KC_ATSCALE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-clients"
+          key: engine
+    - name: KC_ATSCALE_MODELER_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-clients"
+          key: modeler
+    - name: KC_ATSCALE_API_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-clients"
+          key: api
+    - name: KC_ATSCALE_PUBLIC_API_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-clients"
+          key: publicApi
+    - name: KC_ATSCALE_ENTITLEMENT_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: "{{ .Release.Name }}-kc-clients"
+          key: entitlement
+
+telemetry:
+  replicaCount: 1
+
+  fullnameOverride: ""
+  nameOverride: "telemetry"
+
+  image:
+    registry: docker.io
+    repository: "atscaleinc/opentelemetry-collector-contrib"
+    tag: "2025.11.1"
+
+  mode: deployment
+  serviceAccount:
+    create: false
+
+  configMap:
+    create: false
+    existingName: '{{ (include "common.names.fullname" .) }}'
+
+  ports:
+    health-check:
+      enabled: true
+      containerPort: 13133
+      servicePort: 13133
+      hostPort: 13133
+      protocol: TCP
+
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+  autoscaling:
+    enabled: false
+
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
+
+  command:
+    extraArgs:
+      - "--config=/conf/relay.yaml"
+
+  topologySpreadConstraints: []
+
+  initContainers:
+    - name: init-permissions
+      image: "atscaleinc/busybox:2025.11.1"
+      command:
+        [
+          "sh",
+          "-c",
+          "chmod -R 777 /var/log/atscale/ && touch /var/log/atscale/atscale_metrics && touch /var/log/atscale/atscale_logs && touch /var/log/atscale/atscale_traces",
+        ]
+      volumeMounts:
+        - name: all-logs
+          mountPath: /var/log/atscale
+
+  extraVolumes:
+    - name: all-logs
+      persistentVolumeClaim:
+        claimName: '{{- printf "%s-logs" (include "common.tplvalues.render" ( dict "value" .Values.global.atscale.telemetry.volumeClaim.name "context" $ ) | default (printf "data-%s-telemetry" .Release.Name) ) }}'
+
+  extraVolumeMounts:
+    - name: all-logs
+      mountPath: /var/log/atscale
+
+  resources:
+    requests:
+      memory: 256Mi
+
+aggregates:
+  fullnameOverride: ""
+  nameOverride: "aggs"
+
+  initdbScriptsSecret: '{{ printf "%s-init-scripts" (include "common.names.fullname" .) }}'
+
+  image:
+    registry: docker.io
+    repository: atscaleinc/aggregates
+    tag: "2025.11.1"
+
+  # @param database.name; The default DATABASE for the aggregates dw;
+  # @param database.schema; The default SCHEMA for the aggregates dw;
+  # If you are overriding the schema name here make sure to override it in the extraEnvVars section as well.
+  database:
+    name: "aggregates"
+    schema: "preferredstore"
+
+  # @param extraEnvVars; The default user and password generated by atscale you can override them with your own secret;
+  extraEnvVars:
+    - name: CUSTOM_USER
+      valueFrom:
+        secretKeyRef:
+          name: '{{ printf "%s-conn" (include "common.names.fullname" .) }}'
+          key: user
+    - name: CUSTOM_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: '{{ printf "%s-conn" (include "common.names.fullname" .) }}'
+          key: password
+    - name: SCHEMA
+      value: "preferredstore"
+
+  initContainers:
+    - name: otel-logs-collector
+      securityContext: {}
+      image: "{{ .Values.global.atscale.telemetry.image.repository }}:{{ .Values.global.atscale.telemetry.image.tag }}"
+      args:
+        - --config=/conf/collector.yaml
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 200m
+      ##   memory: 200Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+      restartPolicy: "Always"
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+        - name: otel-config
+          mountPath: /conf
+
+    - name: parquet-monitor
+      securityContext: {}
+      image: "docker.io/atscaleinc/psql:2025.11.1"
+      args:
+        - /bin/bash
+        - /cleanup.sh
+      ## The values set as default are the minimum required for AtScale to run.
+      ## limits:
+      ##   cpu: 200m
+      ##   memory: 200Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 100Mi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+      restartPolicy: "Always"
+      env:
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: '{{ printf "%s-conn" (include "common.names.fullname" .) }}'
+              key: user
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: '{{ printf "%s-conn" (include "common.names.fullname" .) }}'
+              key: password
+        - name: PGDATA
+          value: "{{ .Values.global.atscale.aggregates.engine.persistence }}"
+        - name: CLEANUP_TIMEOUT
+          value: "1800"
+        - name: PGHOST
+          value: '{{ include "common.names.fullname" . }}'
+        - name: PGDATABASE
+          value: "{{ .Values.database.name }}"
+        - name: PGPORT
+          value: "{{ .Values.service.ports.tcp }}"
+      volumeMounts:
+        - name: pgdata
+          mountPath: '{{ .Values.global.atscale.aggregates.engine.persistence | trimSuffix "/docker" }}'
+        - name: cleanup
+          mountPath: /cleanup.sh
+          subPath: cleanup.sh
+
+  extraVolumes:
+    - name: logs
+      emptyDir:
+        sizeLimit: 1000Mi
+    - name: otel-config
+      configMap:
+        name: '{{- include "common.tplvalues.render" (dict "value" .Values.global.atscale.telemetry.configMap.name "context" $) }}'
+    - name: cleanup
+      configMap:
+        name: '{{ printf "%s-script" (include "common.names.fullname" .) }}'
+
+  extraVolumeMounts:
+    - name: logs
+      mountPath: /var/log/app
+
+  extendedConf: |-
+    shared_preload_libraries = 'pg_duckdb'	# (change requires restart)
+    log_destination = jsonlog
+    log_filename = aggregates
+    logging_collector = on
+    log_directory = '/var/log/app'
+    log_rotation_age = 1d
+    log_rotation_size = 100MB
+    log_truncate_on_rotation = on
+    log_file_mode = 0644
+
+  persistence:
+    enabled: true
+    # If you have a persistent volume claim which you've created manually, define it here.
+    existingClaim: ""
+    # If a global storageClass has been defined on the cluster you can set it here.
+    storageClass: ""
+    # Set where in the PGcontainer you want to persistent storage to be set.
+    mountPath: '{{ .Values.global.atscale.aggregates.engine.persistence | trimSuffix "/docker" }}'
+    # Persistent Volume Claim size
+    size: 64Gi
+
+  # @param resourcesPrese; This setups a preset value for the database resources. We've disabled it by default.
+  resourcesPreset:
+    "none"
+    ## The values set as default are the minimum required for AtScale to run.
+    ## You want to increase this value depending on the number of aggregates you are building.
+    ## limits:
+    ##   cpu: 8000m
+    ##   memory: 16384Mi
+    ## requests:
+    ##   cpu: 4000m
+    ##   memory: 4096Mi
+  resources: {}
+
+  service:
+    ports:
+      tcp: 10519
+
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb
+  ## @param pdb.create Enable/disable a Pod Disruption Budget creation
+  ## @param pdb.minAvailable Minimum number/percentage of pods that should remain scheduled
+  ## @param pdb.maxUnavailable Maximum number/percentage of pods that may be made unavailable. Defaults to `1` if both `pdb.minAvailable` and `pdb.maxUnavailable` are empty.
+  ##
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
