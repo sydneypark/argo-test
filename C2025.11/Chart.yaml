@@ -13,11 +13,11 @@ dependencies:
     condition: redis.enabled
     alias: redis
 
-   # - name: atscale-opentelemetry-collector
-    #  version: "2025.11.1"
-     # repository: oci://docker.io/atscaleinc
-     # condition: global.atscale.telemetry.enabled
-    #  alias: telemetry
+  - name: atscale-opentelemetry-collector
+    version: "2025.11.1"
+    repository: oci://docker.io/atscaleinc
+    condition: global.atscale.telemetry.enabled
+    alias: telemetry
 
   #### ATSCALE ####
   - name: atscale-common
