@@ -5,7 +5,7 @@ global:
     
 atscale-opentelemetry-collector:
   image:
-    repository: "otel/opentelemetry-collector-k8s"
+    repository: "oci://registry-1.docker.io/atscaleinc/atscale"
 
   atscale:
     registry:
