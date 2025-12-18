@@ -21,3 +21,7 @@ atscale-proxy:
   replicaCount: 1
   service:
     type: LoadBalancer
+
+atscale-opentelemetry-collector:
+  image:
+    repository: "otel/opentelemetry-collector-k8s"
